@@ -160,16 +160,18 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+const STORAGE_KEY = 'payalsFoodClub_recipes';
+
 function loadRecipes() {
   try {
-    const stored = localStorage.getItem('recipeClub_recipes');
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) return JSON.parse(stored);
   } catch (_) {}
   return null;
 }
 
 function saveRecipes(data) {
-  localStorage.setItem('recipeClub_recipes', JSON.stringify(data));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
 function escHtml(str) {
@@ -240,6 +242,7 @@ function renderGrid() {
 
   if (list.length === 0) {
     emptyState.classList.remove('hidden');
+    grid.innerHTML = '';
     return;
   }
   emptyState.classList.add('hidden');
