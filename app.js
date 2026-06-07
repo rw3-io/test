@@ -5,8 +5,9 @@ const SAMPLE_RECIPES = [
   {
     id: uid(),
     name: 'Classic Avocado Toast',
-    category: 'breakfast',
-    time: '10 min',
+    category: 'Breakfast',
+    time: 10,
+    servings: 2,
     description: 'Creamy smashed avocado on toasted sourdough, finished with a jammy egg and a pinch of chilli flakes. A crowd-pleasing morning staple that comes together in minutes.',
     ingredients: [
       '2 slices sourdough bread',
@@ -28,8 +29,9 @@ const SAMPLE_RECIPES = [
   {
     id: uid(),
     name: 'Lemon Herb Chicken Salad',
-    category: 'lunch',
-    time: '20 min',
+    category: 'Lunch',
+    time: 20,
+    servings: 2,
     description: 'Juicy grilled chicken over crisp mixed greens with cherry tomatoes, cucumber, and a bright lemon-herb vinaigrette. Light, satisfying, and endlessly customisable.',
     ingredients: [
       '2 chicken breasts',
@@ -54,8 +56,9 @@ const SAMPLE_RECIPES = [
   {
     id: uid(),
     name: 'Spaghetti Carbonara',
-    category: 'dinner',
-    time: '25 min',
+    category: 'Dinner',
+    time: 25,
+    servings: 4,
     description: 'The Roman classic done properly — silky egg-and-Pecorino sauce, crispy guanciale, and plenty of black pepper. No cream needed.',
     ingredients: [
       '400 g spaghetti',
@@ -77,8 +80,9 @@ const SAMPLE_RECIPES = [
   {
     id: uid(),
     name: 'Chocolate Lava Cakes',
-    category: 'dessert',
-    time: '25 min',
+    category: 'Dessert',
+    time: 25,
+    servings: 4,
     description: 'Warm, fudgy individual chocolate cakes with a molten centre that flows when you break in. Elegant enough for dinner parties, easy enough for a weeknight treat.',
     ingredients: [
       '115 g dark chocolate (70%), chopped',
@@ -102,8 +106,9 @@ const SAMPLE_RECIPES = [
   {
     id: uid(),
     name: 'Homemade Guacamole',
-    category: 'snacks',
-    time: '10 min',
+    category: 'Snacks',
+    time: 10,
+    servings: 6,
     description: 'Chunky, fresh guacamole made with ripe avocados, lime, coriander, and jalapeño. Perfect with tortilla chips or as a topping for tacos and burritos.',
     ingredients: [
       '3 ripe avocados',
@@ -126,8 +131,9 @@ const SAMPLE_RECIPES = [
   {
     id: uid(),
     name: 'Honey Garlic Salmon',
-    category: 'dinner',
-    time: '20 min',
+    category: 'Dinner',
+    time: 20,
+    servings: 4,
     description: 'Pan-seared salmon fillets glazed with a sticky honey-garlic sauce that caramelises beautifully. Ready in 20 minutes with just a handful of pantry ingredients.',
     ingredients: [
       '4 salmon fillets (skin-on)',
@@ -162,93 +168,103 @@ function loadRecipes() {
   return null;
 }
 
-function saveRecipes(recipes) {
-  localStorage.setItem('recipeClub_recipes', JSON.stringify(recipes));
+function saveRecipes(data) {
+  localStorage.setItem('recipeClub_recipes', JSON.stringify(data));
 }
 
-function cap(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1);
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let recipes = loadRecipes() || (() => {
-  saveRecipes(SAMPLE_RECIPES);
-  return SAMPLE_RECIPES;
-})();
-
-let activeCategory = 'all';
+let recipes = loadRecipes() || (() => { saveRecipes(SAMPLE_RECIPES); return SAMPLE_RECIPES; })();
+let activeCategory = 'All';
 let searchQuery = '';
 let viewingId = null;
+let pendingDeleteId = null;
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 const grid          = document.getElementById('recipe-grid');
+const emptyState    = document.getElementById('empty-state');
 const countEl       = document.getElementById('recipe-count');
 const searchInput   = document.getElementById('search-input');
+const searchClear   = document.getElementById('search-clear');
 const filterBtns    = document.querySelectorAll('.filter-btn');
 
+// View modal
 const viewModal     = document.getElementById('view-modal');
+const viewBadge     = document.getElementById('view-badge');
 const viewTitle     = document.getElementById('view-title');
 const viewMeta      = document.getElementById('view-meta');
 const viewDesc      = document.getElementById('view-description');
 const viewIngreds   = document.getElementById('view-ingredients');
 const viewInstrs    = document.getElementById('view-instructions');
 
+// Add modal
 const addModal      = document.getElementById('add-modal');
 const addForm       = document.getElementById('add-form');
 const fName         = document.getElementById('f-name');
 const fCategory     = document.getElementById('f-category');
 const fTime         = document.getElementById('f-time');
+const fServings     = document.getElementById('f-servings');
 const fDescription  = document.getElementById('f-description');
 const fIngredients  = document.getElementById('f-ingredients');
 const fInstructions = document.getElementById('f-instructions');
 
-// ─── Render ───────────────────────────────────────────────────────────────────
+// Confirm modal
+const confirmModal  = document.getElementById('confirm-modal');
+const confirmName   = document.getElementById('confirm-name');
+
+// ─── Filtering ────────────────────────────────────────────────────────────────
 function filteredRecipes() {
   const q = searchQuery.toLowerCase();
   return recipes.filter(r => {
-    const matchCat = activeCategory === 'all' || r.category === activeCategory;
+    const matchCat = activeCategory === 'All' || r.category === activeCategory;
     const matchQ   = !q || r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q);
     return matchCat && matchQ;
   });
 }
 
+// ─── Render ───────────────────────────────────────────────────────────────────
 function renderGrid() {
   const list = filteredRecipes();
+  const cat  = activeCategory.toLowerCase();
+
   countEl.textContent = list.length === 1 ? '1 recipe' : `${list.length} recipes`;
 
   grid.innerHTML = '';
 
   if (list.length === 0) {
-    grid.innerHTML = `
-      <div class="empty-state">
-        <span class="empty-icon">🍽</span>
-        <h3>No recipes found</h3>
-        <p>Try adjusting your search or filter, or add a new recipe to get started.</p>
-        <button class="btn btn-accent" onclick="openAddModal()">+ Add Recipe</button>
-      </div>`;
+    emptyState.classList.remove('hidden');
     return;
   }
+  emptyState.classList.add('hidden');
 
   list.forEach(recipe => {
+    const slug = recipe.category.toLowerCase();
     const card = document.createElement('article');
     card.className = 'recipe-card';
     card.dataset.id = recipe.id;
     card.innerHTML = `
-      <div class="card-color-bar bar-${recipe.category}"></div>
+      <div class="card-bar bar-${slug}"></div>
       <div class="card-body">
         <div class="card-top">
-          <span class="category-badge badge-${recipe.category}">${cap(recipe.category)}</span>
-          ${recipe.time ? `<span class="card-time">⏱ ${recipe.time}</span>` : ''}
+          <span class="category-badge badge-${slug}">${escHtml(recipe.category)}</span>
+          ${recipe.time ? `<span class="card-time">⏱ ${escHtml(String(recipe.time))} min</span>` : ''}
         </div>
         <h3 class="card-title">${escHtml(recipe.name)}</h3>
         <p class="card-description">${escHtml(recipe.description)}</p>
       </div>
       <div class="card-footer">
-        <span style="font-size:0.82rem;color:var(--color-text-muted)">
+        <span style="font-size:0.82rem;color:var(--text-muted)">
           ${recipe.ingredients.length} ingredient${recipe.ingredients.length !== 1 ? 's' : ''}
-          &nbsp;·&nbsp; ${recipe.instructions.length} step${recipe.instructions.length !== 1 ? 's' : ''}
+          ${recipe.servings ? ` · ${recipe.servings} serving${recipe.servings !== 1 ? 's' : ''}` : ''}
         </span>
-        <button class="btn btn-ghost btn-sm view-btn">View Recipe →</button>
+        <button class="card-view-btn view-btn">View →</button>
       </div>`;
 
     card.querySelector('.view-btn').addEventListener('click', e => {
@@ -260,22 +276,22 @@ function renderGrid() {
   });
 }
 
-function escHtml(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 // ─── View modal ───────────────────────────────────────────────────────────────
 function openViewModal(id) {
   const r = recipes.find(x => x.id === id);
   if (!r) return;
   viewingId = id;
 
-  viewTitle.textContent = r.name;
-  viewMeta.innerHTML = `
-    <span class="category-badge badge-${r.category}">${cap(r.category)}</span>
-    ${r.time ? `<span style="font-size:0.9rem;color:var(--color-text-muted)">⏱ ${escHtml(r.time)}</span>` : ''}`;
+  const slug = r.category.toLowerCase();
+  viewBadge.textContent    = r.category;
+  viewBadge.className      = `category-badge badge-${slug}`;
+  viewTitle.textContent    = r.name;
+  viewDesc.textContent     = r.description;
 
-  viewDesc.textContent = r.description;
+  const metaParts = [];
+  if (r.time)     metaParts.push(`<span>⏱ ${escHtml(String(r.time))} min</span>`);
+  if (r.servings) metaParts.push(`<span>🍽 ${escHtml(String(r.servings))} serving${r.servings !== 1 ? 's' : ''}</span>`);
+  viewMeta.innerHTML = metaParts.join('<span class="meta-dot">·</span>');
 
   viewIngreds.innerHTML = r.ingredients
     .map(i => `<li>${escHtml(i)}</li>`)
@@ -301,7 +317,7 @@ function openAddModal() {
   document.querySelectorAll('.form-group.has-error').forEach(el => el.classList.remove('has-error'));
   addModal.classList.add('open');
   document.body.style.overflow = 'hidden';
-  fName.focus();
+  setTimeout(() => fName.focus(), 60);
 }
 
 function closeAddModal() {
@@ -310,22 +326,20 @@ function closeAddModal() {
 }
 
 function validateAdd() {
-  let ok = true;
-  const required = [
-    { id: 'fg-name',         field: fName,         check: () => fName.value.trim() },
-    { id: 'fg-category',     field: fCategory,     check: () => fCategory.value },
-    { id: 'fg-description',  field: fDescription,  check: () => fDescription.value.trim() },
-    { id: 'fg-ingredients',  field: fIngredients,  check: () => fIngredients.value.trim() },
-    { id: 'fg-instructions', field: fInstructions, check: () => fInstructions.value.trim() },
+  const timeVal = parseInt(fTime.value, 10);
+  const checks = [
+    { id: 'fg-name',         pass: fName.value.trim().length > 0 },
+    { id: 'fg-category',     pass: fCategory.value !== '' },
+    { id: 'fg-time',         pass: !isNaN(timeVal) && timeVal >= 1 && timeVal <= 600 },
+    { id: 'fg-description',  pass: fDescription.value.trim().length > 0 },
+    { id: 'fg-ingredients',  pass: fIngredients.value.trim().length > 0 },
+    { id: 'fg-instructions', pass: fInstructions.value.trim().length > 0 },
   ];
-  required.forEach(({ id, check }) => {
+  let ok = true;
+  checks.forEach(({ id, pass }) => {
     const group = document.getElementById(id);
-    if (check()) {
-      group.classList.remove('has-error');
-    } else {
-      group.classList.add('has-error');
-      ok = false;
-    }
+    group.classList.toggle('has-error', !pass);
+    if (!pass) ok = false;
   });
   return ok;
 }
@@ -337,7 +351,8 @@ function submitRecipe() {
     id: uid(),
     name: fName.value.trim(),
     category: fCategory.value,
-    time: fTime.value.trim(),
+    time: parseInt(fTime.value, 10) || null,
+    servings: parseInt(fServings.value, 10) || null,
     description: fDescription.value.trim(),
     ingredients: fIngredients.value.split('\n').map(l => l.trim()).filter(Boolean),
     instructions: fInstructions.value.split('\n').map(l => l.trim()).filter(Boolean),
@@ -347,32 +362,61 @@ function submitRecipe() {
   saveRecipes(recipes);
   closeAddModal();
   renderGrid();
-  toast('Recipe added!', 'success');
+  toast('Recipe saved!', 'success');
 }
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
-function deleteRecipe(id) {
-  if (!confirm('Delete this recipe? This cannot be undone.')) return;
-  recipes = recipes.filter(r => r.id !== id);
+// ─── Confirm / delete modal ───────────────────────────────────────────────────
+function openConfirmDelete(id) {
+  const r = recipes.find(x => x.id === id);
+  if (!r) return;
+  pendingDeleteId = id;
+  confirmName.textContent = r.name;
+  confirmModal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeConfirmModal() {
+  confirmModal.classList.remove('open');
+  pendingDeleteId = null;
+  if (!viewModal.classList.contains('open')) {
+    document.body.style.overflow = '';
+  }
+}
+
+function executeDelete() {
+  if (!pendingDeleteId) return;
+  recipes = recipes.filter(r => r.id !== pendingDeleteId);
   saveRecipes(recipes);
+  closeConfirmModal();
   closeViewModal();
   renderGrid();
   toast('Recipe deleted.', 'info');
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
+const toastContainer = document.getElementById('toast-container');
+const TOAST_ICONS = { success: '✅', error: '❌', info: 'ℹ️' };
+
 function toast(message, type = 'info') {
-  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
-  const container = document.getElementById('toast-container');
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span><span>${escHtml(message)}</span>`;
-  container.appendChild(el);
+  el.innerHTML = `<span class="toast-icon">${TOAST_ICONS[type] || 'ℹ️'}</span><span>${escHtml(message)}</span>`;
+  toastContainer.appendChild(el);
   setTimeout(() => el.remove(), 3200);
+}
+
+// ─── Close-all helper ─────────────────────────────────────────────────────────
+function closeAllModals() {
+  [viewModal, addModal, confirmModal].forEach(m => m.classList.remove('open'));
+  document.body.style.overflow = '';
+  viewingId = null;
+  pendingDeleteId = null;
 }
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 document.getElementById('btn-add-recipe').addEventListener('click', openAddModal);
+document.getElementById('empty-add-btn').addEventListener('click', openAddModal);
+
 document.getElementById('add-close').addEventListener('click', closeAddModal);
 document.getElementById('add-cancel').addEventListener('click', closeAddModal);
 document.getElementById('add-submit').addEventListener('click', submitRecipe);
@@ -380,29 +424,23 @@ document.getElementById('add-submit').addEventListener('click', submitRecipe);
 document.getElementById('view-close').addEventListener('click', closeViewModal);
 document.getElementById('view-close-bottom').addEventListener('click', closeViewModal);
 document.getElementById('view-delete').addEventListener('click', () => {
-  if (viewingId) deleteRecipe(viewingId);
+  if (viewingId) openConfirmDelete(viewingId);
 });
 
-// Close modals on overlay click
-[viewModal, addModal].forEach(modal => {
+document.getElementById('confirm-close').addEventListener('click', closeConfirmModal);
+document.getElementById('confirm-cancel').addEventListener('click', closeConfirmModal);
+document.getElementById('confirm-delete').addEventListener('click', executeDelete);
+
+// Overlay click closes modals
+[viewModal, addModal, confirmModal].forEach(modal => {
   modal.addEventListener('click', e => {
-    if (e.target === modal) {
-      viewModal.classList.remove('open');
-      addModal.classList.remove('open');
-      document.body.style.overflow = '';
-      viewingId = null;
-    }
+    if (e.target === modal) closeAllModals();
   });
 });
 
-// Close modals on Escape
+// Escape key
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    viewModal.classList.remove('open');
-    addModal.classList.remove('open');
-    document.body.style.overflow = '';
-    viewingId = null;
-  }
+  if (e.key === 'Escape') closeAllModals();
 });
 
 // Category filters
@@ -418,6 +456,15 @@ filterBtns.forEach(btn => {
 // Search
 searchInput.addEventListener('input', () => {
   searchQuery = searchInput.value;
+  searchClear.classList.toggle('hidden', searchQuery === '');
+  renderGrid();
+});
+
+searchClear.addEventListener('click', () => {
+  searchInput.value = '';
+  searchQuery = '';
+  searchClear.classList.add('hidden');
+  searchInput.focus();
   renderGrid();
 });
 
